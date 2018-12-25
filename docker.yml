@@ -1,0 +1,97 @@
+name: docker
+
+releases:
+- name: docker
+  version: 0.0.3
+  url: https://bosh.io/d/github.com/cppforlife/docker-release?v=0.0.3
+  sha1: 2f8b65830effb47a45a7278d9d1e649cdf64b9f8
+- name: os-conf
+  version: 17
+  url: https://bosh.io/d/github.com/cloudfoundry/os-conf-release?v=17
+  sha1: 36bce1030fda4acc102315344d4110994fa1fa43
+
+disk_pools:
+- name: disks
+  disk_size: 20_000
+
+resource_pools:
+- name: vms
+  network: default
+  env:
+    bosh:
+      password: '*'
+
+networks:
+- name: default
+  type: manual
+  subnets:
+  - range: ((internal_cidr))
+    gateway: ((internal_gw))
+    static: [((internal_ip))]
+    dns: ((dns_servers))
+
+instance_groups:
+- name: docker
+  instances: 1
+  resource_pool: vms
+  persistent_disk_pool: disks
+  networks:
+  - name: default
+    static_ips: [((internal_ip))]
+  jobs:
+  - name: disable_agent
+    release: os-conf
+    properties: {}
+  - name: docker
+    release: docker
+    properties:
+      tls: ((docker_ssl))
+  - name: docker-tools
+    release: docker
+    properties:
+      address: ((internal_ip))
+      tls: ((docker_client_ssl))
+  - name: user_add
+    release: os-conf
+    properties:
+      users:
+      - name: jumpbox
+        crypted_password: ((jumpbox_crypted_password))
+
+update:
+  canaries: 1
+  max_in_flight: 1
+  serial: false
+  canary_watch_time: 1000-60000
+  update_watch_time: 1000-60000
+
+cloud_provider:
+  mbus: https://mbus:((mbus_bootstrap_password))@((internal_ip)):6868
+  properties:
+    agent: {mbus: "https://mbus:((mbus_bootstrap_password))@0.0.0.0:6868"}
+    blobstore: {provider: local, path: /var/vcap/micro_bosh/data/cache}
+    ntp: ((ntp_servers))
+
+variables:
+- name: default_ca
+  type: certificate
+  options:
+    is_ca: true
+    common_name: ca
+- name: docker_ssl
+  type: certificate
+  options:
+    ca: default_ca
+    common_name: ((internal_ip))
+    alternative_names: [((internal_ip))]
+    extended_key_usage:
+    - server_auth
+- name: docker_client_ssl
+  type: certificate
+  options:
+    ca: default_ca
+    common_name: client
+    extended_key_usage:
+    - client_auth
+- name: mbus_bootstrap_password
+  type: password
