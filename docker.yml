@@ -1,18 +1,22 @@
-name: docker
+name: jumpbox
 
 releases:
 - name: docker
-  version: 0.0.3
-  url: https://bosh.io/d/github.com/cppforlife/docker-release?v=0.0.3
-  sha1: 2f8b65830effb47a45a7278d9d1e649cdf64b9f8
+  version: 33.0.0
+  url: https://bosh.io/d/github.com/cf-platform-eng/docker-boshrelease?v=33.0.0
+  sha1: 4051195b3868cdb236c172f7e96cb474f2d4728f
 - name: os-conf
   version: 17
   url: https://bosh.io/d/github.com/cloudfoundry/os-conf-release?v=17
   sha1: 36bce1030fda4acc102315344d4110994fa1fa43
+- name: jumpbox
+  version: 1.0.0
+  url: https://github.com/calebwashburn/jumpbox-boshrelease/releases/download/1.0.0/jumpbox-boshrelease-1.0.0.tgz
+  sha1: 778989cbeab66a85a6fab8cc601eece8bc9befe2
 
 disk_pools:
 - name: disks
-  disk_size: 20_000
+  disk_size: 200_000
 
 resource_pools:
 - name: vms
@@ -44,26 +48,25 @@ instance_groups:
     properties: {}
   - name: docker
     release: docker
+    properties: {}
+  - name: jumpbox
+    release: jumpbox
     properties:
-      tls: ((docker_ssl))
-  - name: docker-tools
-    release: docker
-    properties:
-      address: ((internal_ip))
-      tls: ((docker_client_ssl))
-  - name: user_add
-    release: os-conf
-    properties:
-      users:
-      - name: jumpbox
-        crypted_password: ((jumpbox_crypted_password))
+      jumpbox:
+        ssh_password_auth: true
+        users:
+        - name: jumpbox
+          crypted_password: ((jumpbox_crypted_password))
+  - name: tools
+    release: jumpbox
+    properties: {}
 
 update:
-  canaries: 1
+  canaries: 0
   max_in_flight: 1
-  serial: false
-  canary_watch_time: 1000-60000
-  update_watch_time: 1000-60000
+  serial: true
+  canary_watch_time: 1000-120000
+  update_watch_time: 1000-120000
 
 cloud_provider:
   mbus: https://mbus:((mbus_bootstrap_password))@((internal_ip)):6868
@@ -73,25 +76,5 @@ cloud_provider:
     ntp: ((ntp_servers))
 
 variables:
-- name: default_ca
-  type: certificate
-  options:
-    is_ca: true
-    common_name: ca
-- name: docker_ssl
-  type: certificate
-  options:
-    ca: default_ca
-    common_name: ((internal_ip))
-    alternative_names: [((internal_ip))]
-    extended_key_usage:
-    - server_auth
-- name: docker_client_ssl
-  type: certificate
-  options:
-    ca: default_ca
-    common_name: client
-    extended_key_usage:
-    - client_auth
 - name: mbus_bootstrap_password
   type: password
